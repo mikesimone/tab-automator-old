@@ -34,13 +34,36 @@ export class TitleService {
 	}
 
 	/**
-	 * Extracts text content from DOM using a CSS selector
-	 * Supports wildcard selectors with * character
+	 * Extracts text content from a DOM element
+	 * @param el - The element to extract text from
+	 * @returns Extracted text content or empty string
+	 */
+	private getTextFromElement(el: Element): string {
+		let targetEl: Element | ChildNode = el;
+		if (el.childNodes.length > 0) {
+			targetEl = el.childNodes[0];
+		}
+
+		const tagName = (targetEl as Element).tagName?.toLowerCase();
+		if (tagName === 'input') {
+			return (targetEl as HTMLInputElement).value;
+		} else if (tagName === 'select') {
+			const selectEl = targetEl as HTMLSelectElement;
+			return selectEl.options[selectEl.selectedIndex].text;
+		} else {
+			return (targetEl as HTMLElement).innerText || targetEl.textContent || '';
+		}
+	}
+
+	/**
+	 * Extracts text content from DOM using a CSS selector.
+	 * Supports wildcard selectors with * character.
+	 * When multiple elements match, their texts are joined with " & ".
 	 * @param selector - CSS selector string
 	 * @returns Extracted text content or empty string
 	 */
 	getTextBySelector(selector: string): string {
-		let el: Element | null = null;
+		let elements: NodeListOf<Element> | Element[];
 
 		if (selector.includes('*')) {
 			const parts = selector.split(' ');
@@ -61,34 +84,20 @@ export class TitleService {
 			});
 
 			const modifiedSelector = modifiedParts.join(' ');
-			const elements = document.querySelectorAll(modifiedSelector);
-
-			if (elements.length > 0) {
-				el = elements[0];
-			}
+			elements = document.querySelectorAll(modifiedSelector);
 		} else {
-			el = document.querySelector(selector);
+			elements = document.querySelectorAll(selector);
 		}
 
-		let value = '';
-
-		if (el) {
-			let targetEl: any = el;
-			if (el.childNodes.length > 0) {
-				targetEl = el.childNodes[0];
-			}
-
-			if (targetEl.tagName?.toLowerCase() === 'input') {
-				value = (targetEl as HTMLInputElement).value;
-			} else if (targetEl.tagName?.toLowerCase() === 'select') {
-				const selectEl = targetEl as HTMLSelectElement;
-				value = selectEl.options[selectEl.selectedIndex].text;
-			} else {
-				value = targetEl.innerText || targetEl.textContent;
-			}
+		if (elements.length === 0) {
+			return '';
 		}
 
-		return value.trim();
+		const texts = Array.from(elements)
+			.map((el) => this.getTextFromElement(el).trim())
+			.filter((text) => text.length > 0);
+
+		return texts.join(' & ');
 	}
 
 	/**

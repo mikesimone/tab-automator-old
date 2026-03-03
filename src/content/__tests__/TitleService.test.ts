@@ -53,7 +53,7 @@ describe('TitleService', () => {
 
 	describe('getTextBySelector', () => {
 		it('should return empty string if element not found', () => {
-			mockDocument.querySelector.mockReturnValue(null);
+			mockDocument.querySelectorAll.mockReturnValue([]);
 
 			const result = service.getTextBySelector('.not-found');
 			expect(result).toBe('');
@@ -64,7 +64,7 @@ describe('TitleService', () => {
 				childNodes: [],
 				textContent: 'Test Content',
 			};
-			mockDocument.querySelector.mockReturnValue(mockElement);
+			mockDocument.querySelectorAll.mockReturnValue([mockElement]);
 
 			const result = service.getTextBySelector('.content');
 			expect(result).toBe('Test Content');
@@ -74,7 +74,7 @@ describe('TitleService', () => {
 			const mockInput = {
 				childNodes: [{ tagName: 'input', value: 'Input Value' }],
 			};
-			mockDocument.querySelector.mockReturnValue(mockInput);
+			mockDocument.querySelectorAll.mockReturnValue([mockInput]);
 
 			const result = service.getTextBySelector('input');
 			expect(result).toBe('Input Value');
@@ -90,7 +90,7 @@ describe('TitleService', () => {
 					},
 				],
 			};
-			mockDocument.querySelector.mockReturnValue(mockSelect);
+			mockDocument.querySelectorAll.mockReturnValue([mockSelect]);
 
 			const result = service.getTextBySelector('select');
 			expect(result).toBe('Option 2');
@@ -112,10 +112,44 @@ describe('TitleService', () => {
 				childNodes: [],
 				textContent: '  Trimmed Content  ',
 			};
-			mockDocument.querySelector.mockReturnValue(mockElement);
+			mockDocument.querySelectorAll.mockReturnValue([mockElement]);
 
 			const result = service.getTextBySelector('.content');
 			expect(result).toBe('Trimmed Content');
+		});
+
+		it('should join multiple matching elements with " & " (e.g. YouTube multi-creator videos)', () => {
+			const mockElements = [
+				{ childNodes: [], textContent: 'Channel One' },
+				{ childNodes: [], textContent: 'Channel Two' },
+			];
+			mockDocument.querySelectorAll.mockReturnValue(mockElements);
+
+			const result = service.getTextBySelector('.ytd-channel-name a');
+			expect(result).toBe('Channel One & Channel Two');
+		});
+
+		it('should skip empty elements when joining multiple matches', () => {
+			const mockElements = [
+				{ childNodes: [], textContent: 'Channel One' },
+				{ childNodes: [], textContent: '' },
+				{ childNodes: [], textContent: 'Channel Two' },
+			];
+			mockDocument.querySelectorAll.mockReturnValue(mockElements);
+
+			const result = service.getTextBySelector('.ytd-channel-name a');
+			expect(result).toBe('Channel One & Channel Two');
+		});
+
+		it('should handle wildcard selectors with multiple matching elements', () => {
+			const mockElements = [
+				{ childNodes: [], textContent: 'Creator A' },
+				{ childNodes: [], textContent: 'Creator B' },
+			];
+			mockDocument.querySelectorAll.mockReturnValue(mockElements);
+
+			const result = service.getTextBySelector('.ytd-channel-name* a');
+			expect(result).toBe('Creator A & Creator B');
 		});
 	});
 
@@ -125,7 +159,7 @@ describe('TitleService', () => {
 				childNodes: [],
 				textContent: 'Example',
 			};
-			mockDocument.querySelector.mockReturnValue(mockElement);
+			mockDocument.querySelectorAll.mockReturnValue([mockElement]);
 
 			const rule: Rule = {
 				id: 'test',

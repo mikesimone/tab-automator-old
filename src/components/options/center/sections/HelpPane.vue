@@ -173,6 +173,10 @@
 				<p>
 					<code class="bg-base-300 px-1 rounded">{.ytd-channel-name a} - {title}</code>
 				</p>
+				<p class="mt-1 text-sm">
+					When multiple elements match the selector (e.g. a video with multiple creators), their
+					names are joined with " &amp; " automatically.
+				</p>
 				<p class="mt-2">
 					This works with any valid CSS selector:
 					<code class="bg-base-300 px-1 rounded">{#header h1}</code>,
