@@ -12,7 +12,7 @@ export class WindowService {
 			const windows = await chrome.windows.getAll({ populate: true });
 
 			if (windows.length <= 1) {
-				console.log('[Tabee] Only one window open, nothing to merge');
+				console.log('[Tab Automator] Only one window open, nothing to merge');
 				return;
 			}
 
@@ -23,11 +23,13 @@ export class WindowService {
 			}
 
 			if (!targetWindow || !targetWindow.id) {
-				console.error('[Tabee] Could not find target window for merging');
+				console.error('[Tab Automator] Could not find target window for merging');
 				return;
 			}
 
-			console.log(`[Tabee] Merging ${windows.length - 1} windows into window ${targetWindow.id}`);
+			console.log(
+				`[Tab Automator] Merging ${windows.length - 1} windows into window ${targetWindow.id}`
+			);
 
 			// Move all tabs from other windows to the target window
 			for (const window of windows) {
@@ -50,9 +52,9 @@ export class WindowService {
 								index: -1, // Append at the end
 							});
 
-							console.log(`[Tabee] Moved ${tabIds.length} tabs from window ${window.id}`);
+							console.log(`[Tab Automator] Moved ${tabIds.length} tabs from window ${window.id}`);
 						} catch (error) {
-							console.error(`[Tabee] Error moving tabs from window ${window.id}:`, error);
+							console.error(`[Tab Automator] Error moving tabs from window ${window.id}:`, error);
 						}
 					}
 				}
@@ -61,9 +63,9 @@ export class WindowService {
 			// Focus the target window
 			await chrome.windows.update(targetWindow.id, { focused: true });
 
-			console.log('[Tabee] Windows merged successfully');
+			console.log('[Tab Automator] Windows merged successfully');
 		} catch (error) {
-			console.error('[Tabee] Error merging windows:', error);
+			console.error('[Tab Automator] Error merging windows:', error);
 		}
 	}
 }

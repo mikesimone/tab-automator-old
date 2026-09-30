@@ -98,10 +98,9 @@
 				<div class="h-full bg-base-300">
 					<div class="px-8 pt-4">
 						<h1 class="text-xl font-bold flex items-center gap-2">
-							<img src="/assets/icon_32.png" alt="Tabee icon" class="w-5 h-5" />
-							Tabee
+							<img src="/assets/icon_32.png" alt="Tab Automator icon" class="w-5 h-5" />
+							Tab Automator
 						</h1>
-						<p class="text-xs text-base-content/70 mt-1">The original Tab Modifier.</p>
 					</div>
 
 					<Menu :menu-items="sectionItems" title="Sections" @on-menu-clicked="onMenuClicked" />
@@ -118,13 +117,14 @@
 <script lang="ts" setup>
 import Menu from './components/options/left/Menu.vue';
 import { Components, GLOBAL_EVENTS, MenuItem } from './common/types.ts';
-import { computed, inject, onMounted, onUnmounted, ref } from 'vue';
+import { computed, inject, onMounted, onUnmounted, reactive, ref } from 'vue';
 import TabRulesPane from './components/options/center/sections/TabRulesPane.vue';
 import TabGroupsPane from './components/options/center/sections/TabGroupsPane.vue';
 import TabHivePane from './components/options/center/sections/TabHivePane.vue';
 import SettingsPane from './components/options/center/sections/SettingsPane.vue';
 import HelpPane from './components/options/center/sections/HelpPane.vue';
-import DonationPane from './components/options/center/resources/DonationPane.vue';
+import WhatsNewPane from './components/options/center/sections/WhatsNewPane.vue';
+import { WHATS_NEW_HASH, _hasUnseenWhatsNew } from './common/whatsNew.ts';
 import BurgerIcon from './components/icons/BurgerIcon.vue';
 import CloseIcon from './components/icons/CloseIcon.vue';
 import ClipboardIcon from './components/icons/ClipboardIcon.vue';
@@ -142,10 +142,10 @@ const panes: Components = {
 	TabHivePane,
 	SettingsPane,
 	HelpPane,
-	DonationPane,
+	WhatsNewPane,
 };
 
-const sectionItems = [
+const sectionItems = reactive([
 	{
 		title: 'Rules',
 		emoji: '📋',
@@ -173,26 +173,27 @@ const sectionItems = [
 	{
 		title: 'Help',
 		emoji: '❓',
-		description: 'Learn how to use Tabee features',
+		description: 'Learn how to use Tab Automator features',
 		component: 'HelpPane',
 	},
-] as MenuItem[];
+	{
+		title: "What's new",
+		emoji: '✨',
+		description: 'New features in each version',
+		component: 'WhatsNewPane',
+	},
+] as MenuItem[]);
 
 const resourceItems = [
 	{
 		title: 'Chrome Web Store',
-		emoji: '🌐',
-		link: 'https://chrome.google.com/webstore/detail/tab-modifier/penegkenfmliefdbmnfkidlgjfjcidia',
+		emoji: '🧩',
+		link: 'https://chromewebstore.google.com/detail/mookagdegldeclccpbjgpbdacipiehff',
 	},
 	{
 		title: 'GitHub',
 		emoji: '💻',
-		link: 'https://github.com/furybee/chrome-tab-modifier',
-	},
-	{
-		title: 'Donate',
-		emoji: '💝',
-		component: 'DonationPane',
+		link: 'https://github.com/mikesimone/tab-automator',
 	},
 ] as MenuItem[];
 
@@ -224,6 +225,10 @@ const handleKeydown = (event: KeyboardEvent) => {
 
 const onMenuClicked = (menuItem: MenuItem) => {
 	currentContent.value = menuItem;
+
+	if (menuItem.component === 'WhatsNewPane') {
+		menuItem.isNew = false;
+	}
 
 	menuStore.setCurrentMenuItem(menuItem);
 
@@ -286,17 +291,47 @@ onMounted(async () => {
 
 	await rulesStore.init();
 
+	const whatsNewItem = sectionItems.find((item) => item.component === 'WhatsNewPane');
+	if (whatsNewItem && location.hash === WHATS_NEW_HASH) {
+		onMenuClicked(whatsNewItem);
+	} else if (whatsNewItem && (await _hasUnseenWhatsNew())) {
+		whatsNewItem.isNew = true;
+	}
+
 	emitter.on(GLOBAL_EVENTS.NAVIGATE_TO_SETTINGS, () => {
 		onMenuClicked(sectionItems.find((item) => item.component === 'SettingsPane')!);
 	});
 
 	// Add keyboard shortcut listener
 	document.addEventListener('keydown', handleKeydown);
+
+	chrome.runtime.onMessage.addListener(handleSyncConfigUpdated);
 });
 
 onUnmounted(() => {
 	document.removeEventListener('keydown', handleKeydown);
+	chrome.runtime.onMessage.removeListener(handleSyncConfigUpdated);
 });
+
+/**
+ * Fired by the background script when it pulls a newer config from
+ * chrome.storage.sync (i.e. another device made a change). Reload the
+ * store so this open Options page doesn't keep showing stale data.
+ */
+function handleSyncConfigUpdated(message: any) {
+	if (message?.action !== 'syncConfigUpdated') {
+		return;
+	}
+
+	void (async () => {
+		await rulesStore.init();
+
+		emitter.emit(GLOBAL_EVENTS.SHOW_TOAST, {
+			type: 'info',
+			message: 'Configuration updated from another device.',
+		});
+	})();
+}
 </script>
 
 <style scoped>

@@ -9,6 +9,7 @@
 			>
 				<span class="text-xl">{{ menuItem.emoji }}</span>
 				{{ menuItem.title }}
+				<NewFeature v-if="menuItem.isNew" />
 				<template v-if="menuItem.link">
 					<ExternalIcon class="!w-3 !h-3" />
 				</template>
@@ -20,6 +21,7 @@
 <script lang="ts" setup>
 import { MenuItem } from '../../../common/types.ts';
 import ExternalIcon from '../../icons/ExternalIcon.vue';
+import NewFeature from '../../global/NewFeature.vue';
 import { useMenuStore } from '../../../stores/menu.store.ts';
 
 const props = defineProps<{

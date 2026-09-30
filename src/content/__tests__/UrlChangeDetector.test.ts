@@ -131,7 +131,7 @@ describe('UrlChangeDetector', () => {
 			expect(errorCallback).toHaveBeenCalled();
 			expect(successCallback).toHaveBeenCalled();
 			expect(consoleSpy).toHaveBeenCalledWith(
-				'[Tabee] Error in URL change callback:',
+				'[Tab Automator] Error in URL change callback:',
 				expect.any(Error)
 			);
 

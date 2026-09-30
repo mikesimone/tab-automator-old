@@ -13,7 +13,6 @@ export class IconService {
 
 		icons.forEach((icon) => {
 			// ⚠️ icon.remove() causes issues with some websites
-			// https://github.com/furybee/chrome-tab-modifier/issues/354
 			// icon.remove();
 			// Instead, we'll just change the rel attribute
 			icon.setAttribute('rel', 'old-icon');

@@ -7,7 +7,7 @@
 				<div class="grid grid-cols-6">
 					<div class="col-span-5">
 						<h3 class="font-bold">Theme</h3>
-						<p>Change Tabee theme</p>
+						<p>Change Tab Automator theme</p>
 					</div>
 					<div class="col-span-1">
 						<CustomSelect v-model="currentTheme" :items="themes" :show-clear-btn="false" />
@@ -50,7 +50,7 @@
 				<div class="grid grid-cols-6">
 					<div class="col-span-5">
 						<h3 class="font-bold">Lightweight Mode</h3>
-						<p>Reduce memory usage by disabling Tabee on specific domains or URLs.</p>
+						<p>Reduce memory usage by disabling Tab Automator on specific domains or URLs.</p>
 					</div>
 					<div class="col-span-1 flex justify-end">
 						<input
@@ -139,7 +139,7 @@
 					<div class="modal-box">
 						<h3 class="font-bold text-lg">Add Lightweight Mode Pattern</h3>
 						<p class="text-xs opacity-70 mt-2">
-							Specify a domain or regex pattern to exclude from Tabee processing.
+							Specify a domain or regex pattern to exclude from Tab Automator processing.
 						</p>
 
 						<div class="form-control w-full mt-4">
@@ -232,6 +232,27 @@
 
 				<div class="grid grid-cols-6">
 					<div class="col-span-5">
+						<h3 class="font-bold">Auto-Backup on Every Change</h3>
+						<p>
+							Automatically save a copy of your configuration to your Downloads folder (<code>{{
+								AUTO_BACKUP_FILENAME
+							}}</code
+							>) every time you make a change, so you always have a recent copy to restore from.
+						</p>
+					</div>
+					<div class="col-span-1 flex justify-end">
+						<input
+							v-model="autoBackupEnabled"
+							class="toggle toggle-xs toggle-primary"
+							type="checkbox"
+						/>
+					</div>
+				</div>
+
+				<div class="divider my-6"></div>
+
+				<div class="grid grid-cols-6">
+					<div class="col-span-5">
 						<h3 class="font-bold">Import tab rules</h3>
 						<p>Restore your tab rules settings from an external JSON file.</p>
 					</div>
@@ -290,6 +311,34 @@
 			</div>
 		</div>
 
+		<div class="card bg-base-200 mt-4">
+			<div class="card-body">
+				<h2 class="card-title">Sync Across Devices</h2>
+
+				<div class="grid grid-cols-6">
+					<div class="col-span-5">
+						<h3 class="font-bold">Sync via browser account</h3>
+						<p>
+							Mirror your configuration through your browser's built-in account sync
+							(<code>chrome.storage.sync</code>), so it's available on your other devices signed
+							into the same account. Very large configurations (lots of custom icons) may not fit
+							the sync quota - Tab Automator falls back to local + Downloads backup only if so.
+						</p>
+					</div>
+					<div class="col-span-1 flex justify-end">
+						<input v-model="syncEnabled" class="toggle toggle-xs toggle-primary" type="checkbox" />
+					</div>
+				</div>
+
+				<div v-if="syncEnabled" class="mt-4 flex items-center justify-between">
+					<p class="text-xs opacity-70">{{ syncStatusText }}</p>
+					<button class="btn btn-xs btn-outline" :disabled="syncNowInFlight" @click="syncNow">
+						{{ syncNowInFlight ? 'Syncing…' : 'Sync Now' }}
+					</button>
+				</div>
+			</div>
+		</div>
+
 		<div class="card bg-base-200 border border-error mt-4">
 			<div class="card-body">
 				<h2 class="card-title text-error">Danger zone</h2>
@@ -319,6 +368,8 @@ import { inject, ref, watch } from 'vue';
 import { useRulesStore } from '../../../../stores/rules.store.ts';
 import { GLOBAL_EVENTS, LightweightModePattern } from '../../../../common/types.ts';
 import { _getThemes, _generateRandomId } from '../../../../common/helpers.ts';
+import { AUTO_BACKUP_FILENAME } from '../../../../common/autoBackup.ts';
+import { _pullFromSyncIfNewer } from '../../../../common/syncStorage.ts';
 
 const emitter: any = inject('emitter');
 
@@ -352,6 +403,18 @@ const newPattern = ref({
 // Auto-Close
 const autoCloseEnabled = ref(rulesStore.settings.auto_close_enabled ?? false);
 const autoCloseTimeout = ref(rulesStore.settings.auto_close_timeout ?? 30);
+
+// Auto-Backup to Downloads
+const autoBackupEnabled = ref(rulesStore.settings.auto_backup_enabled ?? false);
+
+// Sync across devices
+const syncEnabled = ref(rulesStore.settings.sync_enabled ?? false);
+const syncNowInFlight = ref(false);
+const syncStatusText = ref(
+	rulesStore.settings.last_synced_at
+		? `Last synced: ${new Date(rulesStore.settings.last_synced_at).toLocaleString()}`
+		: 'Not synced yet.'
+);
 
 const themes = _getThemes();
 
@@ -406,6 +469,78 @@ watch(autoCloseTimeout, async (timeout) => {
 	rulesStore.settings.auto_close_timeout = timeout;
 	await rulesStore.save();
 });
+
+watch(autoBackupEnabled, async (enabled) => {
+	rulesStore.settings.auto_backup_enabled = enabled;
+	await rulesStore.save();
+
+	emitter.emit(GLOBAL_EVENTS.SHOW_TOAST, {
+		type: 'success',
+		message: enabled
+			? `Auto-Backup enabled! A copy will be saved to Downloads/${AUTO_BACKUP_FILENAME} on every change.`
+			: 'Auto-Backup disabled.',
+	});
+});
+
+watch(syncEnabled, async (enabled) => {
+	rulesStore.settings.sync_enabled = enabled;
+	await rulesStore.save();
+
+	if (enabled) {
+		syncStatusText.value = 'Sync enabled - pushing current config…';
+		rulesStore.settings.last_synced_at = Date.now();
+		await rulesStore.save();
+		syncStatusText.value = `Last synced: ${new Date(rulesStore.settings.last_synced_at).toLocaleString()}`;
+	}
+
+	emitter.emit(GLOBAL_EVENTS.SHOW_TOAST, {
+		type: 'success',
+		message: enabled ? 'Sync across devices enabled!' : 'Sync across devices disabled.',
+	});
+});
+
+const syncNow = async () => {
+	syncNowInFlight.value = true;
+
+	try {
+		const result = await _pullFromSyncIfNewer();
+
+		if (result.status === 'updated') {
+			await rulesStore.init();
+
+			emitter.emit(GLOBAL_EVENTS.SHOW_TOAST, {
+				type: 'success',
+				message: 'Pulled newer configuration from another device!',
+			});
+		} else if (result.status === 'unchanged') {
+			// Nothing new remotely - push our current state just in case this
+			// device has local changes the last save didn't manage to sync.
+			rulesStore.settings.last_synced_at = Date.now();
+			await rulesStore.save();
+
+			emitter.emit(GLOBAL_EVENTS.SHOW_TOAST, {
+				type: 'info',
+				message: 'Already up to date.',
+			});
+		} else {
+			emitter.emit(GLOBAL_EVENTS.SHOW_TOAST, {
+				type: 'warning',
+				message: 'No synced configuration found yet.',
+			});
+		}
+
+		syncStatusText.value = `Last synced: ${new Date().toLocaleString()}`;
+	} catch (error) {
+		console.error('[Tab Automator] Sync Now failed:', error);
+
+		emitter.emit(GLOBAL_EVENTS.SHOW_TOAST, {
+			type: 'error',
+			message: 'Sync failed - see console for details.',
+		});
+	} finally {
+		syncNowInFlight.value = false;
+	}
+};
 
 const onFileChanged = (event: any) => {
 	const file = event.target.files[0];
@@ -557,7 +692,7 @@ const exportConfig = async () => {
 	const a = document.createElement('a');
 
 	a.href = url;
-	a.download = 'tabee.config.json';
+	a.download = 'tab-automator.config.json';
 	document.body.appendChild(a);
 	a.click();
 

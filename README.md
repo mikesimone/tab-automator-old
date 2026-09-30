@@ -1,11 +1,8 @@
-# <img src="public/assets/icon_16.png" alt="icon"> Tabee
+# <img src="public/assets/icon_16.png" alt="icon"> Tab Automator
 
-![GitHub Release](https://img.shields.io/github/v/release/furybee/chrome-tab-modifier?style=flat-square&labelColor=black&v) [![license](https://img.shields.io/badge/license-MIT-ff4081.svg?style=flat-square&labelColor=black)](./LICENSE) ![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/furybee/chrome-tab-modifier/ci.yml?style=flat-square&label=CI&labelColor=black) [![.nvmrc](https://img.shields.io/badge/.nvmrc-20-00e676.svg?style=flat-square&labelColor=black)](./.nvmrc)
-[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-ffab00.svg?style=flat-square&labelColor=black)](https://conventionalcommits.org) ![pr welcome](https://img.shields.io/badge/PRs-welcome-09FF33.svg?style=flat-square&labelColor=black)
+[![license](https://img.shields.io/badge/license-MIT-ff4081.svg?style=flat-square&labelColor=black)](./LICENSE.md)
 
-The original Tab Modifier.
-
-Take control of your tabs!
+Automate your browser tabs with rules.
 
 ## Features
 
@@ -16,46 +13,43 @@ Take control of your tabs!
 * Prevent tab closing
 * Unique tab
 * Mute tab
+* Auto-backup your configuration to Downloads on every change
+* Sync your configuration across devices via your browser account
 
 Quick rename can be done by right-clicking anywhere in the page and click on "Rename Tab".
 
+### Backup & Sync
+
+In Options > Settings:
+
+* **Auto-Backup on Every Change** - writes a copy of your full configuration to
+  `Downloads/tab-automator.auto-backup.json` every time you add, edit, or remove
+  something, so a browser reset or a bad import never costs you your rules.
+  The file is overwritten in place (no growing pile of numbered copies).
+* **Sync Across Devices** - mirrors your configuration through your browser's
+  built-in account sync (`chrome.storage.sync`), so it shows up automatically
+  on your other devices signed into the same account. Very large
+  configurations (lots of custom icons) may exceed the browser's sync quota;
+  Tab Automator detects that and falls back to local + Downloads backup only, rather
+  than failing silently.
+
+Both are off by default and can be toggled independently.
+
 ## Installation
 
-Tabee is compatible with Chromium-based browsers.
-
-| Browser        | Install Link                                                                                                | Web Store             |
-|----------------|-------------------------------------------------------------------------------------------------------------|-----------------------|
-| Google Chrome  | ⬇️ [Install](https://chromewebstore.google.com/detail/tabee-tab-modifier/penegkenfmliefdbmnfkidlgjfjcidia)        | Chrome Web Store      |
-| Arc            | ⬇️ [Install](https://chromewebstore.google.com/detail/tabee-tab-modifier/penegkenfmliefdbmnfkidlgjfjcidia)        | Chrome Web Store      |
-| Brave          | ⬇️ [Install](https://chromewebstore.google.com/detail/tabee-tab-modifier/penegkenfmliefdbmnfkidlgjfjcidia)        | Chrome Web Store      |
-| Opera          | ⬇️ Available Soon                                  | Opera Addons          |
-| Microsoft Edge | ⬇️ Available Soon | Microsoft Edge Addons |
-
-Firefox and Safari are not available.
+Tab Automator works in Chromium-based browsers (Chrome, Arc, Brave, Edge, Opera). Install it from the
+[Chrome Web Store](https://chromewebstore.google.com/detail/mookagdegldeclccpbjgpbdacipiehff), or see
+[Load local extension in Chrome](#load-local-extension-in-chrome) to run it from source.
 
 ## Usage
 
-* Click on the Tabee icon <img src="public/assets/icon_16.png" alt="icon"> to open Popup or Right-Click then Options.
+* Click on the Tab Automator icon <img src="public/assets/icon_16.png" alt="icon"> to open Popup or Right-Click then Options.
 * Create your tab rules.
 * Try & enjoy!
 
-## Why did you build this extension?
-
-I needed a quick UI element in Chrome to know the environment of the tab, as a Web developer I often use multiple versions of the same website: local, pre-production and production.
-
-Not easy to find the appropriate tab when you have multiple tabs called "My awesome website".
-
-I created Tabee (formerly Tab Modifier) to add prefixes to website titles with a specific match.
-
-* [DEV] My awesome website: `.local.domain.com`
-* [PREPROD] My awesome website: `.preprod.domain.com`
-* [PROD] My awesome website: `.domain.com`
-
-After that, I have added more features like "auto-pin", custom favicons and more.
-
 ## Core system
 
-Tabee is based on user *rules* and act on the tab URL that matches the first seen rule. When you open a tab (or refresh), the extension will check if the URL matches a rule and apply the actions.
+Tab Automator is based on user *rules* and act on the tab URL that matches the first seen rule. When you open a tab (or refresh), the extension will check if the URL matches a rule and apply the actions.
 
 Aware of that, there is no reason to include a feature that is not "rule-based". Prefer to install specific extensions or create your own.
 
@@ -124,8 +118,6 @@ And now, build your own... 💪
 
 ### Local icon path doesn't work
 
-Related issue: [#5](https://github.com/furybee/chrome-tab-modifier/issues/5)
-
 Due to browser security restrictions, this path won't work: `file://<path>/icon.png`.
 Your icon will not be shown by Chrome.
 
@@ -135,21 +127,15 @@ Another solution consists in transform your image in the [Data URI format](https
 
 ### Chrome system pages `chrome://`
 
-Related issues: [#11](https://github.com/furybee/chrome-tab-modifier/issues/11), [#14](https://github.com/furybee/chrome-tab-modifier/issues/14)
-
-Pages that start with `chrome://` URL are protected. No content script can be injected then Tab Modifier will not work on these pages.
+Pages that start with `chrome://` URL are protected. No content script can be injected then Tab Automator will not work on these pages.
 
 ### Local files `file:///`
 
-Related issue: [#13](https://github.com/furybee/chrome-tab-modifier/issues/13)
-
-By default, extensions don't have access to local files. You have to opt-in "Allow access to file URLs" from `chrome://extensions/?id=penegkenfmliefdbmnfkidlgjfjcidia`.
+By default, extensions don't have access to local files. You have to opt-in "Allow access to file URLs" from `chrome://extensions/?id=mookagdegldeclccpbjgpbdacipiehff`.
 
 ### Protected action is not triggered
 
-Related issue: [#95](https://github.com/furybee/chrome-tab-modifier/issues/95)
-
-Since Chrome 90, the JS event that triggers a refresh or a closure has been reworked. See related issue.
+Since Chrome 90, the JS event that triggers a refresh or a closure has been reworked, so the confirmation only appears after you've interacted with the page.
 
 ## Development
 
@@ -175,19 +161,9 @@ Go to `chrome://extensions/` and enable the "Developer mode".
 
 Click on "Load unpacked extension..." and select the project `dist/` folder.
 
-## Donation
-
-A huge thanks to all donators!
-
-If you like this extension and want to support its development, you can make a donation by clicking one of the links below.
-
-- [Buy Me a Coffee](https://www.buymeacoffee.com/xyugxh7bk)
-- [Credit Card](https://donate.stripe.com/fZeg1Sgml971dbieUU)
-- [Paypal](https://www.paypal.com/donate/?hosted_button_id=T7KZA4MLT5XTU)
-
 ## Security
 
-Tabee takes security seriously. Every code change goes through automated security checks in our CI/CD pipeline:
+Every code change goes through automated security checks in our CI/CD pipeline:
 
 - **ClamAV Malware Scan**: Detects viruses, trojans, and malware in the codebase
 - **Gitleaks Secret Scan**: Prevents hardcoded secrets, API keys, and credentials
@@ -199,4 +175,4 @@ For detailed security documentation, see [docs/SECURITY.md](docs/SECURITY.md).
 
 ## License
 
-See [license](LICENSE.md) file.
+MIT; see [LICENSE.md](LICENSE.md).

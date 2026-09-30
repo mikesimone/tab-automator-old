@@ -24,23 +24,23 @@ export class TabHiveService {
 	 * Initialize auto-close tracking
 	 */
 	async initialize(): Promise<void> {
-		console.log('[Tabee] 🍯 Initializing auto-close tracking...');
+		console.log('[Tab Automator] 🍯 Initializing auto-close tracking...');
 
 		const settings = await _getStorageAsync();
 		if (!settings?.settings.auto_close_enabled) {
-			console.log('[Tabee] Auto-close is disabled, skipping initialization');
+			console.log('[Tab Automator] Auto-close is disabled, skipping initialization');
 			return;
 		}
 
 		console.log(
-			`[Tabee] Auto-close enabled with timeout: ${settings.settings.auto_close_timeout} minutes`
+			`[Tab Automator] Auto-close enabled with timeout: ${settings.settings.auto_close_timeout} minutes`
 		);
 
 		// Get all existing tabs and mark them as active
 		const tabs = await chrome.tabs.query({});
 		const now = Date.now();
 
-		console.log(`[Tabee] Tracking ${tabs.length} existing tabs`);
+		console.log(`[Tab Automator] Tracking ${tabs.length} existing tabs`);
 
 		for (const tab of tabs) {
 			if (tab.id) {
@@ -78,7 +78,9 @@ export class TabHiveService {
 	 * Uses chrome.alarms API which works reliably in service workers
 	 */
 	private async startAutoCloseChecker(): Promise<void> {
-		console.log('[Tabee] 🍯 Starting auto-close checker using chrome.alarms (runs every minute)');
+		console.log(
+			'[Tab Automator] 🍯 Starting auto-close checker using chrome.alarms (runs every minute)'
+		);
 
 		// Clear existing alarm if any
 		await chrome.alarms.clear(TabHiveService.ALARM_NAME);
@@ -89,14 +91,14 @@ export class TabHiveService {
 			delayInMinutes: TabHiveService.CHECK_INTERVAL_MINUTES, // First check after 1 minute
 		});
 
-		console.log('[Tabee] Auto-close checker alarm created successfully');
+		console.log('[Tab Automator] Auto-close checker alarm created successfully');
 	}
 
 	/**
 	 * Stop the auto-close checker
 	 */
 	async stopAutoCloseChecker(): Promise<void> {
-		console.log('[Tabee] 🍯 Auto-close disabled via settings, stopping checker...');
+		console.log('[Tab Automator] 🍯 Auto-close disabled via settings, stopping checker...');
 		await chrome.alarms.clear(TabHiveService.ALARM_NAME);
 		// Clear the tracking map
 		this.tabActivityMap.clear();
@@ -108,11 +110,11 @@ export class TabHiveService {
 	 */
 	async checkAndCloseInactiveTabs(): Promise<void> {
 		try {
-			console.log('[Tabee] 🍯 Running auto-close check...');
+			console.log('[Tab Automator] 🍯 Running auto-close check...');
 
 			const settings = await _getStorageAsync();
 			if (!settings?.settings.auto_close_enabled) {
-				console.log('[Tabee] Auto-close disabled, stopping checker');
+				console.log('[Tab Automator] Auto-close disabled, stopping checker');
 				this.stopAutoCloseChecker();
 				return;
 			}
@@ -123,7 +125,7 @@ export class TabHiveService {
 			// Get all tabs
 			const allTabs = await chrome.tabs.query({});
 			console.log(
-				`[Tabee] Checking ${allTabs.length} tabs (timeout: ${settings.settings.auto_close_timeout} minutes)`
+				`[Tab Automator] Checking ${allTabs.length} tabs (timeout: ${settings.settings.auto_close_timeout} minutes)`
 			);
 
 			let candidatesCount = 0;
@@ -134,19 +136,19 @@ export class TabHiveService {
 
 				// Skip pinned tabs
 				if (tab.pinned) {
-					console.log(`[Tabee] Skipping pinned tab: ${tab.title}`);
+					console.log(`[Tab Automator] Skipping pinned tab: ${tab.title}`);
 					continue;
 				}
 
 				// Skip active tab
 				if (tab.active) {
-					console.log(`[Tabee] Skipping active tab: ${tab.title}`);
+					console.log(`[Tab Automator] Skipping active tab: ${tab.title}`);
 					continue;
 				}
 
 				// Check if tab is in reject list
 				if (this.isTabInRejectList(tab.url, settings.settings.tab_hive_reject_list)) {
-					console.log(`[Tabee] 🚫 Skipping tab in reject list: ${tab.title} (${tab.url})`);
+					console.log(`[Tab Automator] 🚫 Skipping tab in reject list: ${tab.title} (${tab.url})`);
 					continue;
 				}
 
@@ -154,7 +156,7 @@ export class TabHiveService {
 				const activity = this.tabActivityMap.get(tab.id);
 				if (!activity) {
 					// Tab not tracked yet, add it
-					console.log(`[Tabee] New untracked tab found, adding to tracking: ${tab.title}`);
+					console.log(`[Tab Automator] New untracked tab found, adding to tracking: ${tab.title}`);
 					this.tabActivityMap.set(tab.id, {
 						tabId: tab.id,
 						lastActiveTime: now,
@@ -169,7 +171,7 @@ export class TabHiveService {
 				if (inactiveTime >= timeoutMs) {
 					candidatesCount++;
 					console.log(
-						`[Tabee] 🍯 Tab eligible for auto-close: "${tab.title}" (inactive for ${inactiveMinutes} minutes)`
+						`[Tab Automator] 🍯 Tab eligible for auto-close: "${tab.title}" (inactive for ${inactiveMinutes} minutes)`
 					);
 
 					// Save tab info before closing
@@ -180,24 +182,24 @@ export class TabHiveService {
 						await chrome.tabs.remove(tab.id);
 						closedCount++;
 						console.log(
-							`[Tabee] ✅ Auto-closed inactive tab: ${tab.title} (inactive for ${inactiveMinutes} minutes)`
+							`[Tab Automator] ✅ Auto-closed inactive tab: ${tab.title} (inactive for ${inactiveMinutes} minutes)`
 						);
 					} catch (error) {
-						console.error(`[Tabee] ❌ Error closing tab ${tab.id}:`, error);
+						console.error(`[Tab Automator] ❌ Error closing tab ${tab.id}:`, error);
 					}
 				} else {
 					const remainingMinutes = Math.round((timeoutMs - inactiveTime) / 60000);
 					console.log(
-						`[Tabee] Tab "${tab.title}" inactive for ${inactiveMinutes}min, will close in ${remainingMinutes}min`
+						`[Tab Automator] Tab "${tab.title}" inactive for ${inactiveMinutes}min, will close in ${remainingMinutes}min`
 					);
 				}
 			}
 
 			console.log(
-				`[Tabee] 🍯 Auto-close check complete: ${closedCount} tabs closed out of ${candidatesCount} candidates`
+				`[Tab Automator] 🍯 Auto-close check complete: ${closedCount} tabs closed out of ${candidatesCount} candidates`
 			);
 		} catch (error) {
-			console.error('[Tabee] ❌ Error in auto-close checker:', error);
+			console.error('[Tab Automator] ❌ Error in auto-close checker:', error);
 		}
 	}
 
@@ -234,7 +236,7 @@ export class TabHiveService {
 			// Check if this URL already exists in the hive
 			const existingIndex = closedTabs.findIndex((t: any) => t.urlHash === urlHash);
 			if (existingIndex !== -1) {
-				console.log(`[Tabee] 🍯 Tab already in hive, updating timestamp: ${tab.title}`);
+				console.log(`[Tab Automator] 🍯 Tab already in hive, updating timestamp: ${tab.title}`);
 				// Update the existing entry with new timestamp and move to beginning
 				const existingTab = closedTabs[existingIndex];
 				closedTabs.splice(existingIndex, 1);
@@ -267,9 +269,9 @@ export class TabHiveService {
 				[TabHiveService.CLOSED_TABS_STORAGE_KEY]: closedTabs,
 			});
 
-			console.log(`[Tabee] Saved closed tab to history: ${tab.title}`);
+			console.log(`[Tab Automator] Saved closed tab to history: ${tab.title}`);
 		} catch (error) {
-			console.error('[Tabee] Error saving closed tab:', error);
+			console.error('[Tab Automator] Error saving closed tab:', error);
 		}
 	}
 
@@ -285,9 +287,9 @@ export class TabHiveService {
 		// Close the tab
 		try {
 			await chrome.tabs.remove(tab.id);
-			console.log(`[Tabee] Tab sent to hive: ${tab.title}`);
+			console.log(`[Tab Automator] Tab sent to hive: ${tab.title}`);
 		} catch (error) {
-			console.error('[Tabee] Error closing tab:', error);
+			console.error('[Tab Automator] Error closing tab:', error);
 		}
 	}
 
@@ -303,7 +305,7 @@ export class TabHiveService {
 			// Find the tab
 			const tabIndex = closedTabs.findIndex((t: any) => t.id === closedTabId);
 			if (tabIndex === -1) {
-				console.error('[Tabee] Closed tab not found:', closedTabId);
+				console.error('[Tab Automator] Closed tab not found:', closedTabId);
 				return;
 			}
 
@@ -321,9 +323,9 @@ export class TabHiveService {
 				[TabHiveService.CLOSED_TABS_STORAGE_KEY]: closedTabs,
 			});
 
-			console.log(`[Tabee] Restored tab: ${closedTab.title}`);
+			console.log(`[Tab Automator] Restored tab: ${closedTab.title}`);
 		} catch (error) {
-			console.error('[Tabee] Error restoring tab:', error);
+			console.error('[Tab Automator] Error restoring tab:', error);
 		}
 	}
 
@@ -362,7 +364,7 @@ export class TabHiveService {
 
 			return false;
 		} catch (error) {
-			console.error('[Tabee] Error checking reject list:', error);
+			console.error('[Tab Automator] Error checking reject list:', error);
 			return false;
 		}
 	}

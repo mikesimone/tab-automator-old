@@ -68,7 +68,7 @@ describe('_processUrlFragment', () => {
 
 		expect(result).toBe(urlFragment);
 		expect(consoleErrorSpy).toHaveBeenCalledWith(
-			'Tabee: Error processing URL fragment:',
+			'Tab Automator: Error processing URL fragment:',
 			expect.any(Error)
 		);
 

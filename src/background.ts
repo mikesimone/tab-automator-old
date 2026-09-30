@@ -2,13 +2,26 @@
  * Main background service worker
  * Orchestrates all services following Dependency Inversion Principle
  */
-import { _getRuleFromUrl, _getStorageAsync, _setStorage } from './common/storage';
+import {
+	_getRuleFromUrl,
+	_getStorageAsync,
+	_setStorage,
+	STORAGE_KEY_METADATA,
+} from './common/storage';
+import { _pullFromSyncIfNewer } from './common/syncStorage';
 import { TabRulesService } from './background/TabRulesService';
 import { TabGroupsService } from './background/TabGroupsService';
 import { TabHiveService } from './background/TabHiveService';
 import { WindowService } from './background/WindowService';
-import { ContextMenuService } from './background/ContextMenuService';
+import {
+	AUTO_REFRESH_MENU_PAUSE,
+	AUTO_REFRESH_MENU_PRESET_PREFIX,
+	AUTO_REFRESH_MENU_RESUME,
+	ContextMenuService,
+} from './background/ContextMenuService';
+import { _openWhatsNewAfterUpdate } from './common/whatsNew';
 import { SpotSearchService } from './background/SpotSearchService';
+import { AutoRefreshService } from './background/AutoRefreshService';
 
 // Initialize services (Dependency Injection)
 const tabRulesService = new TabRulesService();
@@ -17,6 +30,7 @@ const tabHiveService = new TabHiveService();
 const windowService = new WindowService();
 const contextMenuService = new ContextMenuService();
 const spotSearchService = new SpotSearchService();
+const autoRefreshService = new AutoRefreshService();
 
 // =============================================================================
 // TAB EVENT LISTENERS
@@ -41,14 +55,14 @@ chrome.tabs.onUpdated.addListener(
 			} else {
 				// Tab entered split view
 				tabGroupsService.markTabInSplitView(tabId);
-				console.log('[Tabee] Skipping tab update - split view change detected:', tabId);
+				console.log('[Tab Automator] Skipping tab update - split view change detected:', tabId);
 				return;
 			}
 		}
 
 		// Also check the tab object for split view status
 		if (tabGroupsService.isTabInSplitView(tab)) {
-			console.log('[Tabee] Skipping tab update - tab is in split view:', tabId);
+			console.log('[Tab Automator] Skipping tab update - tab is in split view:', tabId);
 			return;
 		}
 
@@ -81,7 +95,7 @@ chrome.tabs.onUpdated.addListener(
 				await tabGroupsService.ungroupTab(rule, tab);
 			}
 		} catch (error) {
-			console.log('[Tabee] Error applying group rule (tab may be in split view):', error);
+			console.log('[Tab Automator] Error applying group rule (tab may be in split view):', error);
 		}
 
 		// Handle unique tab logic in background for faster duplicate closing
@@ -97,6 +111,12 @@ chrome.tabs.onUpdated.addListener(
 		}
 
 		await tabRulesService.applyRuleToTab(tab);
+
+		try {
+			await autoRefreshService.onTabUpdated(tab, changeInfo);
+		} catch (error) {
+			console.log('[Tab Automator] Error scheduling auto-refresh:', error);
+		}
 	}
 );
 
@@ -116,7 +136,7 @@ chrome.tabs.onMoved.addListener(async (tabId) => {
 
 	// Skip if tab is in split view (Chrome 140+)
 	if (tabGroupsService.isTabInSplitView(tab)) {
-		console.log('[Tabee] Skipping tab move - tab is in split view:', tabId);
+		console.log('[Tab Automator] Skipping tab move - tab is in split view:', tabId);
 		return;
 	}
 
@@ -134,7 +154,10 @@ chrome.tabs.onMoved.addListener(async (tabId) => {
 	try {
 		await tabGroupsService.applyGroupRuleToTab(rule, tab, tabModifier);
 	} catch (error) {
-		console.log('[Tabee] Error applying group rule on move (tab may be in split view):', error);
+		console.log(
+			'[Tab Automator] Error applying group rule on move (tab may be in split view):',
+			error
+		);
 	}
 });
 
@@ -168,6 +191,7 @@ chrome.tabs.onCreated.addListener((tab) => {
  */
 chrome.tabs.onRemoved.addListener((tabId) => {
 	tabHiveService.removeTab(tabId);
+	void autoRefreshService.onTabRemoved(tabId);
 });
 
 // =============================================================================
@@ -297,12 +321,12 @@ async function addToTabHiveRejectList(url: string, type: 'domain' | 'url'): Prom
 		if (!tabModifier.settings.tab_hive_reject_list.includes(pattern)) {
 			tabModifier.settings.tab_hive_reject_list.push(pattern);
 			await _setStorage(tabModifier);
-			console.log(`[Tabee] 🚫 Added to Tab Hive reject list (${type}): ${pattern}`);
+			console.log(`[Tab Automator] 🚫 Added to Tab Hive reject list (${type}): ${pattern}`);
 		} else {
-			console.log(`[Tabee] Pattern already in reject list: ${pattern}`);
+			console.log(`[Tab Automator] Pattern already in reject list: ${pattern}`);
 		}
 	} catch (error) {
-		console.error('[Tabee] Error adding to reject list:', error);
+		console.error('[Tab Automator] Error adding to reject list:', error);
 	}
 }
 
@@ -323,6 +347,16 @@ chrome.contextMenus.onClicked.addListener(async function (info, tab) {
 	} else if (info.menuItemId === 'tab-hive-reject-url') {
 		if (!tab?.url) return;
 		await addToTabHiveRejectList(tab.url, 'url');
+	} else if (String(info.menuItemId).startsWith(AUTO_REFRESH_MENU_PRESET_PREFIX)) {
+		if (!tab) return;
+		const seconds = Number(String(info.menuItemId).slice(AUTO_REFRESH_MENU_PRESET_PREFIX.length));
+		await autoRefreshService.startForTab(tab, seconds);
+	} else if (info.menuItemId === AUTO_REFRESH_MENU_PAUSE) {
+		if (tab?.id === undefined) return;
+		await autoRefreshService.pauseTab(tab.id);
+	} else if (info.menuItemId === AUTO_REFRESH_MENU_RESUME) {
+		if (!tab) return;
+		await autoRefreshService.resumeTab(tab);
 	}
 });
 
@@ -335,6 +369,13 @@ chrome.contextMenus.onClicked.addListener(async function (info, tab) {
  */
 chrome.storage.onChanged.addListener((changes, areaName) => {
 	if (areaName !== 'sync' && areaName !== 'local') return;
+
+	// Rules are saved compressed in local storage; re-check which tabs auto-refresh.
+	if (areaName === 'local' && (changes.tab_modifier_compressed || changes.tab_modifier)) {
+		void autoRefreshService.syncAllTabs().catch((error) => {
+			console.log('[Tab Automator] Error syncing auto-refresh alarms:', error);
+		});
+	}
 
 	// Check if tab_modifier settings changed
 	if (changes.tab_modifier) {
@@ -350,7 +391,7 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 
 			// If auto-close was just enabled
 			if (!wasEnabled && isEnabled) {
-				console.log('[Tabee] 🍯 Auto-close enabled via settings, initializing tracking...');
+				console.log('[Tab Automator] 🍯 Auto-close enabled via settings, initializing tracking...');
 				tabHiveService.initialize();
 			}
 			// If auto-close was just disabled
@@ -360,11 +401,39 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 			// If timeout changed while enabled
 			else if (isEnabled && oldTimeout !== newTimeout) {
 				console.log(
-					`[Tabee] 🍯 Auto-close timeout changed from ${oldTimeout} to ${newTimeout} minutes`
+					`[Tab Automator] 🍯 Auto-close timeout changed from ${oldTimeout} to ${newTimeout} minutes`
 				);
 				// No need to restart, the next check will use the new timeout
 			}
 		}
+	}
+
+	// A change to sync storage's chunk metadata means another device pushed
+	// a config update. Pull it down and apply it locally, but only if this
+	// device also has sync turned on - a remote push shouldn't silently
+	// override a device that opted out.
+	if (areaName === 'sync' && changes[STORAGE_KEY_METADATA]) {
+		void (async () => {
+			const local = await _getStorageAsync();
+
+			if (!local?.settings?.sync_enabled) {
+				return;
+			}
+
+			const result = await _pullFromSyncIfNewer();
+
+			if (result.status === 'updated') {
+				await _setStorage(result.data);
+
+				console.log(
+					'[Tab Automator] 🔄 Applied config pulled from sync (another device made a change)'
+				);
+
+				// Best-effort: let an open Options/Popup page know to refresh.
+				// No listener being present (nothing open) is expected and fine.
+				chrome.runtime.sendMessage({ action: 'syncConfigUpdated' }).catch(() => {});
+			}
+		})();
 	}
 });
 
@@ -373,32 +442,32 @@ chrome.storage.onChanged.addListener((changes, areaName) => {
 // =============================================================================
 
 chrome.commands.onCommand.addListener(async (command, tab) => {
-	console.log('[Tabee] 🔍 Command received:', command);
+	console.log('[Tab Automator] 🔍 Command received:', command);
 
 	if (command === 'merge-windows') {
 		await windowService.mergeAllWindows();
 	} else if (command === 'spot-search') {
-		console.log('[Tabee] 🔍 Spot search command triggered');
-		console.log('[Tabee] 🔍 Tab:', tab);
+		console.log('[Tab Automator] 🔍 Spot search command triggered');
+		console.log('[Tab Automator] 🔍 Tab:', tab);
 
 		// Toggle spot search in the active tab
 		if (!tab?.id) {
-			console.log('[Tabee] ❌ No tab ID found');
+			console.log('[Tab Automator] ❌ No tab ID found');
 			return;
 		}
 
 		// Skip chrome:// and about: pages
 		if (tab.url && (tab.url.startsWith('chrome://') || tab.url.startsWith('about:'))) {
-			console.log('[Tabee] ❌ Cannot open spot search on chrome:// or about: pages');
+			console.log('[Tab Automator] ❌ Cannot open spot search on chrome:// or about: pages');
 			return;
 		}
 
-		console.log('[Tabee] 🔍 Sending toggleSpotSearch message to tab', tab.id);
+		console.log('[Tab Automator] 🔍 Sending toggleSpotSearch message to tab', tab.id);
 		try {
 			await chrome.tabs.sendMessage(tab.id, { action: 'toggleSpotSearch' });
-			console.log('[Tabee] ✅ Message sent successfully');
+			console.log('[Tab Automator] ✅ Message sent successfully');
 		} catch (error) {
-			console.error('[Tabee] ❌ Error toggling spot search:', error);
+			console.error('[Tab Automator] ❌ Error toggling spot search:', error);
 		}
 	}
 });
@@ -430,8 +499,10 @@ chrome.action.onClicked.addListener(async (tab) => {
  */
 chrome.alarms.onAlarm.addListener(async (alarm) => {
 	if (alarm.name === 'tabee-auto-close-checker') {
-		console.log('[Tabee] 🍯 Alarm triggered, checking for inactive tabs...');
+		console.log('[Tab Automator] 🍯 Alarm triggered, checking for inactive tabs...');
 		await tabHiveService.checkAndCloseInactiveTabs();
+	} else if (autoRefreshService.isAutoRefreshAlarm(alarm)) {
+		await autoRefreshService.handleAlarm(alarm);
 	}
 });
 
@@ -442,9 +513,21 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
 // Initialize Tab Hive auto-close tracking when extension loads
 tabHiveService.initialize();
 
+// Make sure tabs that should auto-refresh have an alarm (e.g. after a browser restart)
+void autoRefreshService.syncAllTabs().catch((error) => {
+	console.log('[Tab Automator] Error syncing auto-refresh alarms:', error);
+});
+
 // Log that background script is loaded
-console.log('[Tabee] 🐝 Background service worker loaded and ready');
-console.log('[Tabee] 🔍 Spot search command handler registered');
+console.log('[Tab Automator] 🐝 Background service worker loaded and ready');
+console.log('[Tab Automator] 🔍 Spot search command handler registered');
 
 // Export for use in other modules
 export { tabHiveService };
+
+// Show the What's new page once after an update that has release notes
+chrome.runtime.onInstalled.addListener((details) => {
+	if (details.reason === 'update') {
+		void _openWhatsNewAfterUpdate(details.previousVersion);
+	}
+});

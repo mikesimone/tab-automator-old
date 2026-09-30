@@ -26,6 +26,11 @@
 						paste directly from clipboard.
 					</li>
 					<li>
+						<strong>Auto-refresh tabs</strong> - Reload tabs on a timer without touching the tab
+						you're looking at. Set it in a rule's Auto-refresh section, or right-click any page and
+						choose Auto-refresh this tab (where you can also pause it for that tab).
+					</li>
+					<li>
 						<strong>Pin tabs</strong> - Automatically pin important websites to keep them always
 						visible.
 					</li>
@@ -59,8 +64,8 @@
 						shortcut (Alt+Shift+W) or context menu.
 					</li>
 					<li>
-						<strong>Lightweight Mode</strong> - Reduce memory usage by disabling Tabee on specific
-						domains.
+						<strong>Lightweight Mode</strong> - Reduce memory usage by disabling Tab Automator on
+						specific domains.
 					</li>
 					<li>
 						<strong>RegEx support</strong> - Use advanced pattern matching with regular expressions
@@ -159,9 +164,7 @@
 				<p>This action will rewrite the website title.</p>
 				<p>You can use special variables in your title:</p>
 				<ul class="list-disc ml-3 space-y-1">
-					<li>
-						<code class="bg-base-300 px-1 rounded">{title}</code> - The original page title
-					</li>
+					<li><code class="bg-base-300 px-1 rounded">{title}</code> - The original page title</li>
 					<li>
 						<code class="bg-base-300 px-1 rounded">{.css-selector}</code> - Extract text from any
 						element on the page using a CSS selector

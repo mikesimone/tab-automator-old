@@ -1,8 +1,10 @@
-import { Group, Rule, TabModifierSettings } from './types.ts';
+import { Group, Rule, Settings, TabModifierSettings } from './types.ts';
 import { _clone, _generateRandomId } from './helpers.ts';
 import { _safeRegexTestSync } from './regex-safety.ts';
 import { compressToUTF16, decompressFromUTF16 } from 'lz-string';
 import { debugLog } from './debugLog.ts';
+import { _autoBackupConfig } from './autoBackup.ts';
+import { _pushToSync } from './syncStorage.ts';
 
 export const STORAGE_KEY = 'tab_modifier';
 export const STORAGE_KEY_COMPRESSED = 'tab_modifier_compressed';
@@ -27,6 +29,8 @@ export function _getDefaultTabModifierSettings(): TabModifierSettings {
 			auto_close_timeout: 30, // 30 minutes par défaut
 			tab_hive_reject_list: [],
 			debug_mode: false,
+			auto_backup_enabled: false,
+			sync_enabled: false,
 		},
 	};
 }
@@ -64,7 +68,7 @@ export function _getDefaultGroup(title?: string): Group {
 /**
  * Decompress data from storage
  */
-function _decompressData(compressed: string): TabModifierSettings | null {
+export function _decompressData(compressed: string): TabModifierSettings | null {
 	try {
 		const decompressed = decompressFromUTF16(compressed);
 		if (!decompressed) {
@@ -72,7 +76,7 @@ function _decompressData(compressed: string): TabModifierSettings | null {
 		}
 		return JSON.parse(decompressed);
 	} catch (error) {
-		console.error('[Tabee] Failed to decompress data:', error);
+		console.error('[Tab Automator] Failed to decompress data:', error);
 		return null;
 	}
 }
@@ -80,7 +84,7 @@ function _decompressData(compressed: string): TabModifierSettings | null {
 /**
  * Compress data for storage
  */
-function _compressData(data: TabModifierSettings): string {
+export function _compressData(data: TabModifierSettings): string {
 	const json = JSON.stringify(data);
 	return compressToUTF16(json);
 }
@@ -125,7 +129,7 @@ function _getAllSyncStorageKeys(): Promise<Record<string, any>> {
 /**
  * Helper function to load data from a specific storage (local or sync)
  */
-async function _loadFromStorage(
+export async function _loadFromStorage(
 	storage: chrome.storage.StorageArea,
 	storageName: string
 ): Promise<TabModifierSettings | null> {
@@ -157,7 +161,7 @@ async function _loadFromStorage(
 					for (let i = 0; i < metadata.chunkCount; i++) {
 						const chunk = chunkItems[`${STORAGE_KEY_CHUNK_PREFIX}${i}`];
 						if (!chunk) {
-							console.error(`[Tabee] Missing chunk ${i} in ${storageName} storage`);
+							console.error(`[Tab Automator] Missing chunk ${i} in ${storageName} storage`);
 							resolve(null);
 							return;
 						}
@@ -169,7 +173,7 @@ async function _loadFromStorage(
 
 					if (decompressed) {
 						debugLog(
-							`[Tabee] Loaded data from ${metadata.chunkCount} chunks (${storageName} storage)`
+							`[Tab Automator] Loaded data from ${metadata.chunkCount} chunks (${storageName} storage)`
 						);
 						resolve(decompressed);
 					} else {
@@ -190,7 +194,7 @@ async function _loadFromStorage(
 				if (items[STORAGE_KEY_COMPRESSED]) {
 					const decompressed = _decompressData(items[STORAGE_KEY_COMPRESSED]);
 					if (decompressed) {
-						debugLog(`[Tabee] Loaded compressed data from ${storageName} storage`);
+						debugLog(`[Tab Automator] Loaded compressed data from ${storageName} storage`);
 						resolve(decompressed);
 						return;
 					}
@@ -198,7 +202,7 @@ async function _loadFromStorage(
 
 				// Try uncompressed
 				if (items[STORAGE_KEY]) {
-					debugLog(`[Tabee] Loaded uncompressed data from ${storageName} storage`);
+					debugLog(`[Tab Automator] Loaded uncompressed data from ${storageName} storage`);
 					resolve(items[STORAGE_KEY]);
 					return;
 				}
@@ -219,14 +223,14 @@ export async function _getStorageAsync(): Promise<TabModifierSettings | undefine
 		}
 
 		// If not found in local, try sync storage (migration path)
-		debugLog('[Tabee] No data in local storage, checking sync storage for migration...');
+		debugLog('[Tab Automator] No data in local storage, checking sync storage for migration...');
 		data = await _loadFromStorage(chrome.storage.sync, 'sync');
 
 		if (data) {
 			// Migrate data from sync to local
-			debugLog('[Tabee] Migrating data from sync storage to local storage...');
+			debugLog('[Tab Automator] Migrating data from sync storage to local storage...');
 			await _setStorage(data);
-			debugLog('[Tabee] Migration complete!');
+			debugLog('[Tab Automator] Migration complete!');
 
 			// Clean up sync storage
 			await _clearSyncStorage();
@@ -237,7 +241,7 @@ export async function _getStorageAsync(): Promise<TabModifierSettings | undefine
 		// No data found anywhere
 		return undefined;
 	} catch (error) {
-		console.error('[Tabee] Error loading storage:', error);
+		console.error('[Tab Automator] Error loading storage:', error);
 		throw error;
 	}
 }
@@ -257,7 +261,7 @@ async function _clearSyncStorage(): Promise<void> {
 
 	if (keysToRemove.length > 0) {
 		await chrome.storage.sync.remove(keysToRemove);
-		debugLog(`[Tabee] Cleared ${keysToRemove.length} keys from sync storage`);
+		debugLog(`[Tab Automator] Cleared ${keysToRemove.length} keys from sync storage`);
 	}
 }
 
@@ -274,7 +278,7 @@ export async function _clearStorage(): Promise<void> {
 
 	if (keysToRemove.length > 0) {
 		await chrome.storage.local.remove(keysToRemove);
-		debugLog(`[Tabee] Cleared ${keysToRemove.length} keys from local storage`);
+		debugLog(`[Tab Automator] Cleared ${keysToRemove.length} keys from local storage`);
 	}
 
 	// Also clear sync storage (for migration cleanup)
@@ -296,7 +300,7 @@ export async function _setStorage(tabModifier: TabModifierSettings): Promise<voi
 		const compressedSize = compressed.length;
 
 		debugLog(
-			`[Tabee] Saving ${originalSize} bytes (compressed to ${compressedSize} bytes) to local storage`
+			`[Tab Automator] Saving ${originalSize} bytes (compressed to ${compressedSize} bytes) to local storage`
 		);
 
 		// Save compressed data to local storage
@@ -305,19 +309,22 @@ export async function _setStorage(tabModifier: TabModifierSettings): Promise<voi
 			[STORAGE_KEY_COMPRESSED]: compressed,
 		});
 
-		debugLog(`[Tabee] Data saved successfully to local storage`);
-
-		// Clean up any old sync storage data (migration cleanup)
-		await _clearSyncStorage();
+		debugLog(`[Tab Automator] Data saved successfully to local storage`);
 
 		const ratio = ((1 - compressedSize / originalSize) * 100).toFixed(1);
 		debugLog(
-			`[Tabee] Storage complete: ${originalSize} → ${compressedSize} bytes (${ratio}% reduction)`
+			`[Tab Automator] Storage complete: ${originalSize} → ${compressedSize} bytes (${ratio}% reduction)`
 		);
 	} catch (error) {
-		console.error('[Tabee] Failed to save data:', error);
+		console.error('[Tab Automator] Failed to save data:', error);
 		throw error;
 	}
+
+	// Best-effort side effects of a successful local save. Neither of these
+	// should ever cause the actual config save to fail, so each is isolated
+	// and swallows its own errors internally.
+	await _autoBackupConfig(tabModifier);
+	await _pushToSync(tabModifier);
 }
 
 export async function _getRuleFromUrl(url: string): Promise<Rule | undefined> {
@@ -326,7 +333,11 @@ export async function _getRuleFromUrl(url: string): Promise<Rule | undefined> {
 		return;
 	}
 
-	const foundRule = tabModifier.rules.find((r) => {
+	return _findRuleForUrl(tabModifier.rules, url);
+}
+
+export function _findRuleForUrl(rules: Rule[], url: string): Rule | undefined {
+	return rules.find((r) => {
 		// Skip disabled rules
 		if (r.is_enabled === false) {
 			return false;
@@ -355,12 +366,6 @@ export async function _getRuleFromUrl(url: string): Promise<Rule | undefined> {
 				return false;
 		}
 	});
-
-	if (!foundRule) {
-		return;
-	}
-
-	return foundRule;
 }
 
 // Old migration functions removed - no longer needed with local-only storage
@@ -375,8 +380,10 @@ export async function _shouldSkipUrl(url: string): Promise<boolean> {
 		return false;
 	}
 
-	const { settings } = tabModifier;
+	return _isUrlSkippedBySettings(tabModifier.settings, url);
+}
 
+export function _isUrlSkippedBySettings(settings: Settings, url: string): boolean {
 	// If lightweight mode is not enabled or not configured, don't skip any URLs
 	if (!settings.lightweight_mode_enabled || !settings.lightweight_mode_patterns) {
 		return false;
@@ -400,7 +407,7 @@ export async function _shouldSkipUrl(url: string): Promise<boolean> {
 				}
 			}
 		} catch (error) {
-			console.error('[Tabee] Error checking lightweight mode pattern:', error);
+			console.error('[Tab Automator] Error checking lightweight mode pattern:', error);
 			// Continue checking other patterns
 		}
 	}

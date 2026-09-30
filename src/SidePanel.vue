@@ -147,7 +147,7 @@ onMounted(async () => {
 			}
 		}
 	} catch (error) {
-		console.error('[Tabee] Error getting current tab:', error);
+		console.error('[Tab Automator] Error getting current tab:', error);
 	}
 
 	isInit.value = true;

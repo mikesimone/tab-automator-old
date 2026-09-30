@@ -40,7 +40,15 @@
 								/>
 							</div>
 						</td>
-						<td scope="row">{{ rule.name }}</td>
+						<td scope="row">
+							{{ rule.name }}
+							<span
+								v-if="rule.tab.auto_refresh?.enabled"
+								class="tooltip tooltip-right ml-1"
+								:data-tip="'Auto-refreshes every ' + _formatAutoRefreshInterval(rule)"
+								>🔄</span
+							>
+						</td>
 						<td>
 							<template v-if="!rule.tab.group_id">-</template>
 							<div v-else-if="groupsById[rule.tab.group_id]" class="flex items-center gap-2">
@@ -117,6 +125,17 @@ import { _chromeGroupColor, _shortify } from '../../../../../common/helpers.ts';
 import ColorVisualizer from '../TabGroups/ColorVisualizer.vue';
 import draggable from 'vuedraggable';
 import { FEATURE_FLAGS } from '../../../../../common/feature-flags.ts';
+import {
+	_clampAutoRefreshInterval,
+	_splitAutoRefreshInterval,
+} from '../../../../../common/autoRefresh.ts';
+
+const _formatAutoRefreshInterval = (rule: Rule): string => {
+	const { value, unit } = _splitAutoRefreshInterval(
+		_clampAutoRefreshInterval(rule.tab.auto_refresh?.interval_seconds)
+	);
+	return `${value} ${value === 1 ? unit.slice(0, -1) : unit}`;
+};
 
 const props = defineProps<{
 	rules: Rule[];

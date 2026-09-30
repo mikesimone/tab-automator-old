@@ -6,6 +6,17 @@ export type MenuItem = {
 	description?: string;
 	component?: string;
 	link?: string;
+	isNew?: boolean;
+};
+
+export type AutoRefresh = {
+	enabled: boolean;
+	interval_seconds: number;
+	only_when_tab_inactive: boolean;
+	only_when_window_unfocused: boolean;
+	skip_if_playing_audio: boolean;
+	skip_if_editing: boolean;
+	bypass_cache: boolean;
 };
 
 export type Tab = {
@@ -18,6 +29,8 @@ export type Tab = {
 	group_id?: string | null;
 	title_matcher: string | null;
 	url_matcher: string | null;
+	// Optional so rules exported before auto-refresh existed still import; missing means off.
+	auto_refresh?: AutoRefresh | null;
 };
 
 export type Rule = {
@@ -63,6 +76,9 @@ export type Settings = {
 	auto_close_timeout: number; // en minutes
 	tab_hive_reject_list: string[]; // List of domains to exclude from auto-close
 	debug_mode: boolean; // Enable/disable console logs in content script
+	auto_backup_enabled: boolean; // Auto-export a config copy to Downloads on every change
+	sync_enabled: boolean; // Mirror config through chrome.storage.sync for cross-device sync
+	last_synced_at?: number; // Timestamp (ms) of the last successful sync push/pull
 };
 
 export type TabModifierSettings = {

@@ -57,7 +57,7 @@ export function _isDefined(...args: any[]) {
 
 export function _getThemes() {
 	return [
-		{ label: 'Tabee 🐝', value: 'tabee' },
+		{ label: 'Honey 🐝', value: 'tabee' },
 		{ label: 'Dim', value: 'dim' },
 		{ label: 'Dark', value: 'dark' },
 		{ label: 'Halloween', value: 'halloween' },
@@ -329,7 +329,7 @@ export function _processUrlFragment(
 			}
 		}
 	} catch (e) {
-		console.error('Tabee: Error processing URL fragment:', e);
+		console.error('Tab Automator: Error processing URL fragment:', e);
 	}
 
 	return processedFragment;

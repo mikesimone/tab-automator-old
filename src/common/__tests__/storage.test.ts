@@ -10,6 +10,7 @@ import {
 } from '../storage';
 import { TabModifierSettings } from '../types';
 import { compressToUTF16 } from 'lz-string';
+import { _pullFromSyncIfNewer } from '../syncStorage';
 
 // Mock chrome.storage API
 const mockLocalStorage: Record<string, any> = {};
@@ -107,6 +108,8 @@ const createMockData = (rulesCount: number): TabModifierSettings => ({
 		auto_close_timeout: 30,
 		tab_hive_reject_list: [],
 		debug_mode: false,
+		auto_backup_enabled: false,
+		sync_enabled: false,
 	},
 });
 
@@ -388,6 +391,43 @@ describe('Storage Migration Tests', () => {
 
 			const result = await _getStorageAsync();
 			expect(result?.rules.length).toBe(150);
+		});
+	});
+
+	describe('_setStorage() and sync (regression)', () => {
+		// Regression test for a bug where _setStorage() unconditionally called
+		// a leftover "migration cleanup" _clearSyncStorage() on every save,
+		// wiping chrome.storage.sync's chunk/metadata keys right after
+		// _pushToSync() had just written them. In practice: turn Sync on,
+		// then do anything that triggers another save with unchanged data
+		// (e.g. just reopening the Options page, which calls init() -> save()
+		// unconditionally) - _pushToSync() correctly no-ops ("unchanged"),
+		// but the cleanup call had already deleted what the first save wrote,
+		// so sync ended up empty and "Sync Now" reported no data found.
+		it('does not wipe sync storage on a second, unchanged save', async () => {
+			const config = createMockData(3);
+			config.settings.sync_enabled = true;
+
+			await _setStorage(config);
+			expect(mockSyncStorage[STORAGE_KEY_METADATA]).toBeDefined();
+
+			// Simulate e.g. the Options page re-mounting and calling
+			// init() -> save() again with the exact same data.
+			await _setStorage(config);
+
+			expect(mockSyncStorage[STORAGE_KEY_METADATA]).toBeDefined();
+
+			const pull = await _pullFromSyncIfNewer();
+			expect(pull.status).not.toBe('no-data');
+		});
+
+		it('does not touch sync storage at all when sync is disabled', async () => {
+			const config = createMockData(3);
+			config.settings.sync_enabled = false;
+
+			await _setStorage(config);
+
+			expect(Object.keys(mockSyncStorage)).toHaveLength(0);
 		});
 	});
 });

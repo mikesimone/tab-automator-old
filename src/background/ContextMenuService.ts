@@ -1,3 +1,10 @@
+import { AUTO_REFRESH_PRESETS } from '../common/autoRefresh';
+
+export const AUTO_REFRESH_MENU_PARENT = 'auto-refresh-parent';
+export const AUTO_REFRESH_MENU_PRESET_PREFIX = 'auto-refresh-every-';
+export const AUTO_REFRESH_MENU_PAUSE = 'auto-refresh-pause';
+export const AUTO_REFRESH_MENU_RESUME = 'auto-refresh-resume';
+
 /**
  * Service responsible for managing context menus
  * Single Responsibility: Handle all context menu operations
@@ -11,6 +18,48 @@ export class ContextMenuService {
 		this.createMergeWindowsMenu();
 		this.createSendToHiveMenu();
 		this.createTabHiveRejectMenus();
+		this.createAutoRefreshMenus();
+	}
+
+	/**
+	 * Create the "Auto-refresh this tab" menu: preset intervals plus pause/resume
+	 */
+	private createAutoRefreshMenus(): void {
+		chrome.contextMenus.create({
+			id: AUTO_REFRESH_MENU_PARENT,
+			title: '🔄 Auto-refresh this tab',
+			contexts: ['all'],
+		});
+
+		for (const preset of AUTO_REFRESH_PRESETS) {
+			chrome.contextMenus.create({
+				id: `${AUTO_REFRESH_MENU_PRESET_PREFIX}${preset.seconds}`,
+				parentId: AUTO_REFRESH_MENU_PARENT,
+				title: `Every ${preset.label}`,
+				contexts: ['all'],
+			});
+		}
+
+		chrome.contextMenus.create({
+			id: 'auto-refresh-separator',
+			parentId: AUTO_REFRESH_MENU_PARENT,
+			type: 'separator',
+			contexts: ['all'],
+		});
+
+		chrome.contextMenus.create({
+			id: AUTO_REFRESH_MENU_PAUSE,
+			parentId: AUTO_REFRESH_MENU_PARENT,
+			title: '⏸ Pause on this tab',
+			contexts: ['all'],
+		});
+
+		chrome.contextMenus.create({
+			id: AUTO_REFRESH_MENU_RESUME,
+			parentId: AUTO_REFRESH_MENU_PARENT,
+			title: '▶ Resume on this tab',
+			contexts: ['all'],
+		});
 	}
 
 	/**

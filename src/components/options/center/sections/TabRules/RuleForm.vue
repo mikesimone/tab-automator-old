@@ -221,6 +221,122 @@
 			</div>
 		</div>
 
+		<div class="mt-6 bg-base-200 rounded-md px-3 py-2">
+			<div class="form-control">
+				<label class="cursor-pointer label">
+					<span class="label-text text-sm">Auto-refresh <NewFeature /></span>
+					<input
+						v-model="autoRefreshEnabled"
+						class="toggle toggle-sm toggle-primary"
+						type="checkbox"
+					/>
+				</label>
+				<div v-if="showHelp" class="label pt-0">
+					<span class="text-xs opacity-80 label-text-alt">
+						Reloads matching tabs on a timer. The timer restarts every time the page loads. You can
+						pause it for one tab from the right-click menu.
+					</span>
+				</div>
+			</div>
+
+			<div v-if="autoRefreshEnabled && currentRule.tab.auto_refresh" class="mt-2">
+				<div class="label pb-1">
+					<span class="label-text text-xs">Every</span>
+				</div>
+				<div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+					<label
+						v-for="preset in AUTO_REFRESH_PRESETS"
+						:key="preset.seconds"
+						class="flex items-center gap-1 cursor-pointer"
+					>
+						<input
+							v-model="autoRefreshChoice"
+							:value="preset.seconds"
+							class="radio radio-xs radio-primary"
+							name="auto-refresh-interval"
+							type="radio"
+						/>
+						<span class="label-text text-xs">{{ preset.label }}</span>
+					</label>
+					<label class="flex items-center gap-1 cursor-pointer">
+						<input
+							v-model="autoRefreshChoice"
+							class="radio radio-xs radio-primary"
+							name="auto-refresh-interval"
+							type="radio"
+							value="custom"
+						/>
+						<span class="label-text text-xs">Custom</span>
+					</label>
+					<template v-if="autoRefreshChoice === 'custom'">
+						<input
+							v-model.number="autoRefreshIntervalValue"
+							class="input input-xs input-bordered w-20"
+							min="1"
+							type="number"
+						/>
+						<select v-model="autoRefreshIntervalUnit" class="select select-xs select-bordered">
+							<option value="seconds">seconds</option>
+							<option value="minutes">minutes</option>
+							<option value="hours">hours</option>
+						</select>
+					</template>
+				</div>
+				<div v-if="autoRefreshIntervalNote" class="label">
+					<span class="text-xs text-warning label-text-alt">{{ autoRefreshIntervalNote }}</span>
+				</div>
+
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-x-2 mt-2">
+					<label class="cursor-pointer label">
+						<span class="label-text text-xs">Don't refresh while it's the active tab</span>
+						<input
+							v-model="currentRule.tab.auto_refresh.only_when_tab_inactive"
+							class="toggle toggle-sm toggle-primary"
+							type="checkbox"
+						/>
+					</label>
+					<label class="cursor-pointer label">
+						<span class="label-text text-xs">Don't refresh while its window is focused</span>
+						<input
+							v-model="currentRule.tab.auto_refresh.only_when_window_unfocused"
+							class="toggle toggle-sm toggle-primary"
+							type="checkbox"
+						/>
+					</label>
+					<label class="cursor-pointer label">
+						<span class="label-text text-xs">Wait while the tab is playing audio</span>
+						<input
+							v-model="currentRule.tab.auto_refresh.skip_if_playing_audio"
+							class="toggle toggle-sm toggle-primary"
+							type="checkbox"
+						/>
+					</label>
+					<label class="cursor-pointer label">
+						<span class="label-text text-xs">Wait if I've typed into the page</span>
+						<input
+							v-model="currentRule.tab.auto_refresh.skip_if_editing"
+							class="toggle toggle-sm toggle-primary"
+							type="checkbox"
+						/>
+					</label>
+					<label class="cursor-pointer label">
+						<span class="label-text text-xs">Hard refresh (skip the cache)</span>
+						<input
+							v-model="currentRule.tab.auto_refresh.bypass_cache"
+							class="toggle toggle-sm toggle-primary"
+							type="checkbox"
+						/>
+					</label>
+				</div>
+				<div v-if="showHelp" class="label">
+					<span class="text-xs opacity-80 label-text-alt">
+						When a refresh is due but one of these conditions holds, Tab Automator checks again
+						every 30 seconds and refreshes as soon as it's allowed.
+					</span>
+				</div>
+			</div>
+		</div>
+
 		<details class="mt-6" :open="isAdvancedOpenWhenMounted">
 			<summary class="mb-3 cursor-pointer">Advanced</summary>
 
@@ -325,6 +441,15 @@ import ShortGroupForm from './ShortGroupForm.vue';
 import CloseIcon from '../../../../icons/CloseIcon.vue';
 import RegexVisualizer from '../../../../global/RegexVisualizer.vue';
 import SettingsIcon from '../../../../icons/SettingsIcon.vue';
+import NewFeature from '../../../../global/NewFeature.vue';
+import {
+	AUTO_REFRESH_PRESETS,
+	AUTO_REFRESH_MAX_INTERVAL_SECONDS,
+	AUTO_REFRESH_MIN_INTERVAL_SECONDS,
+	_clampAutoRefreshInterval,
+	_getDefaultAutoRefresh,
+	_splitAutoRefreshInterval,
+} from '../../../../../common/autoRefresh.ts';
 
 const rulesStore = useRulesStore();
 export interface Props {
@@ -414,6 +539,7 @@ watch(
 	() => rulesStore.currentRule,
 	(newRule) => {
 		currentRule.value = newRule ?? defaultRule;
+		loadAutoRefreshInterval();
 	}
 );
 
@@ -422,6 +548,68 @@ watch(
 	(newGroupId) => {
 		if (newGroupId) {
 			currentRule.value.tab.pinned = false;
+		}
+	}
+);
+
+const autoRefreshEnabled = computed({
+	get: () => currentRule.value.tab.auto_refresh?.enabled === true,
+	set: (enabled: boolean) => {
+		if (!currentRule.value.tab.auto_refresh) {
+			currentRule.value.tab.auto_refresh = _getDefaultAutoRefresh();
+		}
+		currentRule.value.tab.auto_refresh.enabled = enabled;
+	},
+});
+
+const UNIT_SECONDS = { seconds: 1, minutes: 60, hours: 3600 } as const;
+const autoRefreshChoice = ref<number | 'custom'>(0);
+const autoRefreshIntervalValue = ref(0);
+const autoRefreshIntervalUnit = ref<keyof typeof UNIT_SECONDS>('minutes');
+
+const loadAutoRefreshInterval = () => {
+	const seconds = _clampAutoRefreshInterval(
+		currentRule.value.tab.auto_refresh?.interval_seconds ??
+			_getDefaultAutoRefresh().interval_seconds
+	);
+	const { value, unit } = _splitAutoRefreshInterval(seconds);
+	autoRefreshIntervalValue.value = value;
+	autoRefreshIntervalUnit.value = unit;
+	autoRefreshChoice.value = AUTO_REFRESH_PRESETS.some((preset) => preset.seconds === seconds)
+		? seconds
+		: 'custom';
+};
+loadAutoRefreshInterval();
+
+const requestedIntervalSeconds = computed(() =>
+	autoRefreshChoice.value === 'custom'
+		? (Number(autoRefreshIntervalValue.value) || 0) * UNIT_SECONDS[autoRefreshIntervalUnit.value]
+		: autoRefreshChoice.value
+);
+
+const autoRefreshIntervalNote = computed(() => {
+	if (requestedIntervalSeconds.value < AUTO_REFRESH_MIN_INTERVAL_SECONDS) {
+		return `Chrome allows at most one refresh every ${AUTO_REFRESH_MIN_INTERVAL_SECONDS} seconds, so ${AUTO_REFRESH_MIN_INTERVAL_SECONDS} seconds will be used.`;
+	}
+	if (requestedIntervalSeconds.value > AUTO_REFRESH_MAX_INTERVAL_SECONDS) {
+		return 'The longest interval is 24 hours, so 24 hours will be used.';
+	}
+	return '';
+});
+
+watch(requestedIntervalSeconds, (seconds) => {
+	if (currentRule.value.tab.auto_refresh) {
+		currentRule.value.tab.auto_refresh.interval_seconds = _clampAutoRefreshInterval(seconds);
+	}
+});
+
+watch(
+	() => currentRule.value.tab.auto_refresh?.enabled,
+	(enabled) => {
+		if (enabled) {
+			currentRule.value.tab.auto_refresh!.interval_seconds = _clampAutoRefreshInterval(
+				requestedIntervalSeconds.value
+			);
 		}
 	}
 );

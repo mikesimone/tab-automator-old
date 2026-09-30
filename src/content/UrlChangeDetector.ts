@@ -52,7 +52,7 @@ export class UrlChangeDetector {
 			const oldUrl = this.lastUrl;
 			this.lastUrl = currentUrl;
 
-			debugLog('[Tabee] 🔄 URL changed (SPA navigation):', {
+			debugLog('[Tab Automator] 🔄 URL changed (SPA navigation):', {
 				from: oldUrl,
 				to: currentUrl,
 			});
@@ -62,7 +62,7 @@ export class UrlChangeDetector {
 				try {
 					callback(currentUrl, oldUrl);
 				} catch (error) {
-					console.error('[Tabee] Error in URL change callback:', error);
+					console.error('[Tab Automator] Error in URL change callback:', error);
 				}
 			});
 		}

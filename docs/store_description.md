@@ -1,4 +1,4 @@
-Take full control of your browser tabs with Tabee! Rename, organize, and customize your tabs effortlessly with powerful automation rules.
+Take full control of your browser tabs with Tab Automator! Rename, organize, and customize your tabs effortlessly with powerful automation rules.
 
 ✨ Key Features:
 
@@ -19,6 +19,13 @@ Take full control of your browser tabs with Tabee! Rename, organize, and customi
 - Protect tabs from accidental closure
 - Enforce unique tabs (auto-close duplicates)
 - Mute noisy tabs
+
+🔄 Auto-refresh
+- Reload tabs every 30 seconds, 1 minute, 5 minutes, 1 hour, 1 day, or any custom interval
+- Set it per rule, or right-click any page to auto-refresh just that tab
+- Never reloads the tab you're looking at (unless you want it to)
+- Waits while a tab plays audio, while you've typed into the page, or while you're offline
+- Pause it on any single tab from the right-click menu
 
 🍯 Tab Hive - Auto-Close Inactive Tabs
 - Automatically close tabs after period of inactivity
@@ -45,8 +52,9 @@ Take full control of your browser tabs with Tabee! Rename, organize, and customi
 - Reduce memory usage on resource-heavy sites
 - Disable listeners selectively
 
-♻️ Sync Across Devices
-- Automatic rule synchronization via Chrome Sync
+♻️ Backup & Sync Across Devices
+- Optional auto-backup of your full configuration to Downloads on every change
+- Optional rule synchronization via your browser account (Chrome Sync)
 - Consistent experience on all your devices
 
 🔐 Privacy First
@@ -63,8 +71,7 @@ Take full control of your browser tabs with Tabee! Rename, organize, and customi
 - Keyboard shortcuts for common actions
 
 🌍 Open Source:
-Contribute or report issues: https://github.com/furybee/chrome-tab-modifier
-Latest releases: https://github.com/furybee/chrome-tab-modifier/releases
+Source code and issues: https://github.com/mikesimone/tab-automator
 
 🔒 About Permissions:
 Access to all websites is required to update tabs as you browse. We respect your privacy - no data is collected or transmitted. All your rules and settings remain on your

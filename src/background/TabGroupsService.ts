@@ -20,7 +20,7 @@ export class TabGroupsService {
 	 */
 	markTabInSplitView(tabId: number): void {
 		this.splitViewTabs.add(tabId);
-		console.log('[Tabee] Marked tab as split view:', tabId);
+		console.log('[Tab Automator] Marked tab as split view:', tabId);
 	}
 
 	/**
@@ -28,7 +28,7 @@ export class TabGroupsService {
 	 */
 	markTabNotInSplitView(tabId: number): void {
 		this.splitViewTabs.delete(tabId);
-		console.log('[Tabee] Unmarked tab from split view:', tabId);
+		console.log('[Tab Automator] Unmarked tab from split view:', tabId);
 	}
 
 	/**
@@ -70,7 +70,7 @@ export class TabGroupsService {
 
 		// Skip if tab is in split view - ungrouping split view tabs can crash Chrome
 		if (this.isTabInSplitView(tab)) {
-			console.log('[Tabee] Skipping ungroup for tab in split view:', tab.id);
+			console.log('[Tab Automator] Skipping ungroup for tab in split view:', tab.id);
 			return;
 		}
 
@@ -93,13 +93,13 @@ export class TabGroupsService {
 					// Re-check split view status before ungrouping
 					const currentTab = await chrome.tabs.get(tab.id);
 					if (this.isTabInSplitView(currentTab)) {
-						console.log('[Tabee] Tab entered split view, skipping ungroup:', tab.id);
+						console.log('[Tab Automator] Tab entered split view, skipping ungroup:', tab.id);
 						return;
 					}
 					await chrome.tabs.ungroup(tab.id);
 				}
 			} catch (error) {
-				console.log('[Tabee] Error in ungroupTab (tab may be in split view):', error);
+				console.log('[Tab Automator] Error in ungroupTab (tab may be in split view):', error);
 			}
 		}
 	}
@@ -116,7 +116,7 @@ export class TabGroupsService {
 
 		// Skip if tab is in split view - grouping split view tabs crashes Chrome
 		if (this.isTabInSplitView(tab)) {
-			console.log('[Tabee] Skipping group rule for tab in split view:', tab.id);
+			console.log('[Tab Automator] Skipping group rule for tab in split view:', tab.id);
 			return;
 		}
 
@@ -153,7 +153,7 @@ export class TabGroupsService {
 
 		// Double-check split view status (tab state could have changed)
 		if (this.isTabInSplitView(tab)) {
-			console.log('[Tabee] Skipping handleTabGroups for tab in split view:', tab.id);
+			console.log('[Tab Automator] Skipping handleTabGroups for tab in split view:', tab.id);
 			return;
 		}
 
@@ -168,7 +168,7 @@ export class TabGroupsService {
 			const execute = async () => {
 				// Quick check using tracking set (fastest)
 				if (this.isTabIdInSplitView(tabId)) {
-					console.log('[Tabee] Tab in split view (tracked), aborting group:', tabId);
+					console.log('[Tab Automator] Tab in split view (tracked), aborting group:', tabId);
 					this.handleTabGroupsMaxRetries = 600;
 					return;
 				}
@@ -177,7 +177,7 @@ export class TabGroupsService {
 				try {
 					const currentTab = await chrome.tabs.get(tabId);
 					if (this.isTabInSplitView(currentTab)) {
-						console.log('[Tabee] Tab entered split view, aborting group operation:', tabId);
+						console.log('[Tab Automator] Tab entered split view, aborting group operation:', tabId);
 						this.handleTabGroupsMaxRetries = 600; // Reset retries
 						return;
 					}
@@ -189,7 +189,7 @@ export class TabGroupsService {
 
 				// Final check before the actual API call
 				if (this.isTabIdInSplitView(tabId)) {
-					console.log('[Tabee] Tab entered split view just before group call:', tabId);
+					console.log('[Tab Automator] Tab entered split view just before group call:', tabId);
 					this.handleTabGroupsMaxRetries = 600;
 					return;
 				}
@@ -203,7 +203,7 @@ export class TabGroupsService {
 							errorMsg.includes('Cannot group') ||
 							this.isTabIdInSplitView(tabId)
 						) {
-							console.log('[Tabee] Split view error detected, stopping retries:', errorMsg);
+							console.log('[Tab Automator] Split view error detected, stopping retries:', errorMsg);
 							this.handleTabGroupsMaxRetries = 600;
 							return;
 						}
@@ -231,7 +231,7 @@ export class TabGroupsService {
 		const execute = async () => {
 			// Quick check using tracking set (fastest)
 			if (this.isTabIdInSplitView(tabId)) {
-				console.log('[Tabee] Tab in split view (tracked), aborting createGroup:', tabId);
+				console.log('[Tab Automator] Tab in split view (tracked), aborting createGroup:', tabId);
 				this.createAndSetupGroupMaxRetries = 600;
 				return;
 			}
@@ -241,7 +241,7 @@ export class TabGroupsService {
 				const currentTab = await chrome.tabs.get(tabId);
 				if (this.isTabInSplitView(currentTab)) {
 					console.log(
-						'[Tabee] Tab entered split view, aborting createAndSetupGroup:',
+						'[Tab Automator] Tab entered split view, aborting createAndSetupGroup:',
 						tabId
 					);
 					this.createAndSetupGroupMaxRetries = 600; // Reset retries
@@ -255,7 +255,7 @@ export class TabGroupsService {
 
 			// Final check before the actual API call
 			if (this.isTabIdInSplitView(tabId)) {
-				console.log('[Tabee] Tab entered split view just before createGroup call:', tabId);
+				console.log('[Tab Automator] Tab entered split view just before createGroup call:', tabId);
 				this.createAndSetupGroupMaxRetries = 600;
 				return;
 			}
@@ -270,7 +270,7 @@ export class TabGroupsService {
 						this.isTabIdInSplitView(tabId)
 					) {
 						console.log(
-							'[Tabee] Split view error in createGroup, stopping retries:',
+							'[Tab Automator] Split view error in createGroup, stopping retries:',
 							errorMsg
 						);
 						this.createAndSetupGroupMaxRetries = 600;

@@ -24,7 +24,8 @@ describe('ContextMenuService', () => {
 			service.initialize();
 
 			// 3 main menus + 3 reject list menus (1 parent + 2 children)
-			expect(mockChrome.contextMenus.create).toHaveBeenCalledTimes(6);
+			// + 9 auto-refresh menus (parent, 5 intervals, separator, pause, resume)
+			expect(mockChrome.contextMenus.create).toHaveBeenCalledTimes(15);
 
 			// Check rename tab menu
 			expect(mockChrome.contextMenus.create).toHaveBeenCalledWith({

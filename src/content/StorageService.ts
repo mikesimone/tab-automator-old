@@ -27,7 +27,7 @@ export class StorageService {
 			}
 			return JSON.parse(decompressed);
 		} catch (error) {
-			console.error('[Tabee Content] Failed to decompress data:', error);
+			console.error('[Tab Automator Content] Failed to decompress data:', error);
 			return null;
 		}
 	}
@@ -49,7 +49,9 @@ export class StorageService {
 							resolve(decompressed);
 							return;
 						}
-						console.warn('[Tabee Content] Failed to decompress data, falling back to uncompressed');
+						console.warn(
+							'[Tab Automator Content] Failed to decompress data, falling back to uncompressed'
+						);
 					}
 
 					// Fallback to uncompressed data (backward compatibility)
